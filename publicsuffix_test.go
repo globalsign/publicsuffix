@@ -248,6 +248,15 @@ var publicSuffixTestCases = []struct {
 	{"nosuchtld", "nosuchtld"},
 	{"foo.nosuchtld", "nosuchtld"},
 	{"bar.foo.nosuchtld", "nosuchtld"},
+	{"free.", ""},
+	{"e.co", "co"},
+	{"g.n", "n"},
+	{"cl.a", "a"},
+	{".m.m", "m"},
+	{"b..n", "n"},
+	{".ck", ".ck"},
+	{"a.ck", "a.ck"},
+	{"k.h", "h"},
 }
 
 func Test_PublicSuffix(t *testing.T) {
@@ -256,6 +265,38 @@ func Test_PublicSuffix(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("%q: got %q, want %q", tc.domain, got, tc.want)
 		}
+	}
+}
+
+func Test_SearchList(t *testing.T) {
+	var tests = []struct {
+		domain   string
+		expected string
+		icann    bool
+		found    bool
+	}{
+		{"nosuchtld", "nosuchtld", false, false},
+		{"www.bd", "www.bd", false, true},
+		{"xn--p1ai", "xn--p1ai", false, true},
+		{"example.globalsign.fake", "fake", false, false},
+		{"cl.a", "a", false, false},
+		{".m.m", "m", false, false},
+		{"b..n", "n", false, false},
+	}
+	for _, tt := range tests {
+		var tt = tt
+		t.Run(tt.domain, func(t *testing.T) {
+			got, icann, found := searchList(tt.domain)
+			if got != tt.expected {
+				t.Errorf("%q: got %q, want %q", tt.domain, got, tt.expected)
+			}
+			if icann != tt.icann {
+				t.Errorf("%q: got %v, want %v", tt.domain, icann, tt.icann)
+			}
+			if found != tt.found {
+				t.Errorf("%q: got %v, want %v", tt.domain, found, tt.found)
+			}
+		})
 	}
 }
 
@@ -268,6 +309,9 @@ func Test_IsInPublicSuffixList(t *testing.T) {
 		{"www.bd", true},
 		{"xn--p1ai", true},
 		{"example.globalsign.fake", false},
+		{"cl.a", false},
+		{".m.m", false},
+		{"b..n", false},
 	}
 
 	for _, tt := range tests {
@@ -472,19 +516,22 @@ org.ac
 func Test_DecomposeDomain(t *testing.T) {
 	var tests = []struct {
 		input    string
-		expected []string
+		expected []subdomain
 	}{
-		{"example.co.uk", []string{"uk", "couk", "examplecouk"}},
-		{"b.ide.kyoto.jp", []string{"jp", "kyotojp", "idekyotojp", "bidekyotojp"}},
-		{"bd", []string{"bd"}},
-		{"aaa.xn--p1ai", []string{"xn--p1ai", "aaaxn--p1ai"}},
-		{"example.with.too.many.sub.domains.blogspot.co.uk", []string{"uk", "couk", "blogspotcouk", "domainsblogspotcouk", "subdomainsblogspotcouk", "manysubdomainsblogspotcouk"}},
+		{"example.co.uk", []subdomain{{"examplecouk", "example.co.uk"}, {"couk", "co.uk"}, {"uk", "uk"}}},
+		{"b.ide.kyoto.jp", []subdomain{{"bidekyotojp", "b.ide.kyoto.jp"}, {"idekyotojp", "ide.kyoto.jp"}, {"kyotojp", "kyoto.jp"}, {"jp", "jp"}}},
+		{"bd", []subdomain{{"bd", "bd"}}},
+		{"aaa.xn--p1ai", []subdomain{{"aaaxn--p1ai", "aaa.xn--p1ai"}, {"xn--p1ai", "xn--p1ai"}}},
 	}
+
+	var subdomains = subdomainPool.Get().([]subdomain)[:0]
+	defer subdomainPool.Put(subdomains)
 
 	for _, tt := range tests {
 		var tt = tt
 		t.Run(tt.input, func(t *testing.T) {
-			var results = decomposeDomain(tt.input)
+			var results = decomposeDomain(tt.input, subdomains)
+
 			if !reflect.DeepEqual(results, tt.expected) {
 				t.Fatalf("got: %v want: %v", results, tt.expected)
 			}

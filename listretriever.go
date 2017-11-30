@@ -3,6 +3,7 @@ package publicsuffix
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,7 +39,7 @@ var (
 func (gh GitHubListRetriever) GetLatestReleaseTag() (string, error) {
 	var res, err = http.Get(gitCommitURL)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error while retrieving last release information from github: %s", err.Error())
 	}
 	defer res.Body.Close()
 
@@ -51,6 +52,10 @@ func (gh GitHubListRetriever) GetLatestReleaseTag() (string, error) {
 		return "", fmt.Errorf("error decoding release info: %s", err.Error())
 	}
 
+	if len(releaseInfo) == 0 {
+		return "", errors.New("no release info decoded from github")
+	}
+
 	return releaseInfo[0].SHA, nil
 }
 
@@ -60,7 +65,7 @@ func (gh GitHubListRetriever) GetList(release string) (io.Reader, error) {
 
 	var res, err = http.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("error while retrieving last revision of the PSL: %s", err.Error())
+		return nil, fmt.Errorf("error while retrieving last revision of the PSL(%s): %s", release, err.Error())
 	}
 	defer res.Body.Close()
 

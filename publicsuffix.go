@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"golang.org/x/net/idna"
@@ -29,6 +30,11 @@ type Rule struct {
 	ICANN      bool
 }
 
+type subdomain struct {
+	name       string
+	dottedName string
+}
+
 // RuleType encapsulates integer for enum
 type RuleType int
 
@@ -37,6 +43,9 @@ const (
 	wildcard
 	exception
 )
+
+const icannBegin = "BEGIN ICANN DOMAINS"
+const icannEnd = "END ICANN DOMAINS"
 
 var (
 	// validSuffixRE is used to check that the entries in the public suffix
@@ -48,9 +57,14 @@ var (
 	// handles read/write concurrency
 	rules atomic.Value
 
-	maxNbSubdomains = 1
-
 	githubListRetriever = GitHubListRetriever{}
+
+	subdomainPool = sync.Pool{
+		New: func() interface{} {
+			// 5 should cover the average domain
+			return make([]subdomain, 5)
+		},
+	}
 )
 
 func init() {
@@ -154,30 +168,47 @@ func Release() string {
 }
 
 func searchList(domain string) (string, bool, bool) {
-	var subdomains = decomposeDomain(domain)
+	// If the domain ends on a dot the subdomains can't be obtained - no PSL applicable
+	if strings.LastIndex(domain, ".") == len(domain)-1 {
+		return "", false, false
+	}
+
+	var buffer = subdomainPool.Get().([]subdomain)[:0]
+	var subdomains = decomposeDomain(domain, buffer)
+	defer subdomainPool.Put(subdomains)
+
 	var rules = load()
 	var found = false
 
-	// the longest matching rule (the one with the most levels) will be used, so we
-	// walk the subdomains backwards to ensure the smallest subdomain is tested last
-	for i := len(subdomains) - 1; i >= 0; i-- {
-		var subdomain = subdomains[i]
-
+	// the longest matching rule (the one with the most levels) will be used
+	for _, sub := range subdomains {
 		var index = sort.Search(len(rules.List), func(i int) bool {
-			return rules.List[i].Name >= subdomain
+			return rules.List[i].Name >= sub.name
 		})
 
 		// if not found, continue
 		if index == len(rules.List) {
 			continue
 		}
+
 		// If found check the rule type
-		if rules.List[index].Name == subdomain {
+		if rules.List[index].Name == sub.name {
 			var rule = rules.List[index]
 			found = true
 
 			if rule.RuleType == wildcard {
 				if len(domain) < len(rule.DottedName) {
+					// Handle corner case where the domain doesn't have a left side and a wildcard rule matches,
+					// i.e ".ck" with rule "*.ck" must return .ck as per golang implementation
+					if strings.Compare(domain, rule.DottedName[1:]) == 0 {
+						return domain, rule.ICANN, found
+					}
+					continue
+				}
+
+				// Check the dotted rule (removing the *.) is contained within the domain
+				if !strings.HasSuffix(sub.dottedName, rule.DottedName[2:]) {
+					found = false
 					continue
 				}
 
@@ -192,8 +223,21 @@ func searchList(domain string) (string, bool, bool) {
 			}
 			//If the rule is an exception rule, modify it by removing the leftmost label
 			if rule.RuleType == exception {
+				// Check the dotted rule (removing the !) is contained within the domain
+				if !strings.HasSuffix(sub.dottedName, rules.List[index].DottedName[1:]) {
+					found = false
+					continue
+				}
+
 				var dot = strings.Index(rule.DottedName, ".")
+
 				return rule.DottedName[dot+1:], rule.ICANN, found
+			}
+
+			// Check the dotted rule is contained within the domain
+			if !strings.HasSuffix(sub.dottedName, rules.List[index].DottedName) {
+				found = false
+				continue
 			}
 
 			return rule.DottedName, rule.ICANN, found
@@ -208,32 +252,27 @@ func searchList(domain string) (string, bool, bool) {
 
 func populateList(r io.Reader, release string) error {
 	var icann = false
-	var bufferReader = bufio.NewReader(r)
+	var scanner = bufio.NewScanner(r)
 	var tempRules = RulesList{}
 
-	for {
-		var line, err = bufferReader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-
-		line = strings.TrimSpace(line)
+	for scanner.Scan() {
+		var line = strings.TrimSpace(scanner.Text())
 
 		if line == "" || strings.HasPrefix(line, "//") {
 			continue
 		}
 
-		if strings.Contains(line, "BEGIN ICANN DOMAINS") {
+		if strings.Contains(line, icannBegin) {
 			icann = true
+			continue
 		}
 
-		if strings.Contains(line, "END ICANN DOMAINS") {
+		if strings.Contains(line, icannEnd) {
 			icann = false
+			continue
 		}
 
+		var err error
 		line, err = idna.ToASCII(line)
 		if err != nil {
 			return fmt.Errorf("error while converting to ASCII %s: %s", line, err.Error())
@@ -245,11 +284,6 @@ func populateList(r io.Reader, release string) error {
 
 		var rule = Rule{ICANN: icann, DottedName: line}
 		var concatenatedLine = strings.Replace(line, ".", "", -1)
-
-		var nbSubdomains = len(strings.Split(line, "."))
-		if nbSubdomains > maxNbSubdomains {
-			maxNbSubdomains = nbSubdomains
-		}
 
 		switch {
 		case strings.HasPrefix(concatenatedLine, "*"):
@@ -278,22 +312,21 @@ func populateList(r io.Reader, release string) error {
 	return nil
 }
 
-func decomposeDomain(domain string) []string {
-	var labels = strings.Split(domain, ".")
+func decomposeDomain(domain string, subdomains []subdomain) []subdomain {
+	var sub = subdomain{dottedName: domain, name: strings.Replace(domain, ".", "", -1)}
 
-	var start = len(labels) - 1
-	var end = 0
+	subdomains = append(subdomains, sub)
 
-	if len(labels) > maxNbSubdomains {
-		end = start - maxNbSubdomains
-	}
+	var name = domain
+	for {
+		var dot = strings.Index(name, ".")
+		if dot == -1 {
+			break
+		}
 
-	var subdomain string
-	var subdomains []string
-
-	for i := start; i >= end; i-- {
-		subdomain = labels[i] + subdomain
-		subdomains = append(subdomains, subdomain)
+		name = name[dot+1:]
+		var sub = subdomain{dottedName: name, name: strings.Replace(name, ".", "", -1)}
+		subdomains = append(subdomains, sub)
 	}
 
 	return subdomains
