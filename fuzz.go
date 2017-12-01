@@ -14,11 +14,11 @@ func Fuzz(in []byte) int {
 	var got, icann = PublicSuffix(domain)
 	var want, wantIcann = psl.PublicSuffix(domain)
 	if want != got {
-		panic(fmt.Sprintf("output mismatch: got %q, want %q\n", got, want))
+		panic(fmt.Sprintf("output mismatch: got %q, want %q (%v)\n", got, want, domain))
 	}
 
 	if icann != wantIcann {
-		panic(fmt.Sprintf("output mismatch: ICANN got %v, want %v\n", icann, wantIcann))
+		panic(fmt.Sprintf("output mismatch: ICANN got %v, want %v (%v)\n", icann, wantIcann, domain))
 	}
 
 	var wantErr error
@@ -27,13 +27,12 @@ func Fuzz(in []byte) int {
 	var err error
 	got, err = EffectiveTLDPlusOne(domain)
 	if want != got {
-
-		panic(fmt.Sprintf("output mismatch: TLD got %q, want %q\n", got, want))
+		panic(fmt.Sprintf("output mismatch: TLD got %q, want %q (%v)\n", got, want, domain))
 	}
 
 	// Compare if an error exists, not the value of it
 	if (err == nil) != (wantErr == nil) {
-		panic(fmt.Sprintf("error mismatch: got err %q, want %q\n", err, wantErr))
+		panic(fmt.Sprintf("error mismatch: got err %q, want %q (%v)\n", err, wantErr, domain))
 	}
 
 	if err != nil {
