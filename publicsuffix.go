@@ -44,8 +44,11 @@ const (
 	exception
 )
 
-const icannBegin = "BEGIN ICANN DOMAINS"
-const icannEnd = "END ICANN DOMAINS"
+// ICANNBegin marks the beginning of ICANN domains
+const ICANNBegin = "BEGIN ICANN DOMAINS"
+
+// ICANNEnd marks the beginning of ICANN domains
+const ICANNEnd = "END ICANN DOMAINS"
 
 var (
 	// validSuffixRE is used to check that the entries in the public suffix
@@ -178,7 +181,7 @@ func searchList(domain string) (string, bool, bool) {
 	defer subdomainPool.Put(subdomains)
 
 	var rules = load()
-	var found = false
+	var found, icann = false, false
 
 	// the longest matching rule (the one with the most levels) will be used
 	for _, sub := range subdomains {
@@ -203,6 +206,15 @@ func searchList(domain string) (string, bool, bool) {
 					if strings.Compare(domain, rule.DottedName[1:]) == 0 {
 						return domain, rule.ICANN, found
 					}
+
+					// Check if the domain contains the rule name (no dots or *), if it doesn't rule is a false match,
+					// reset the values
+					if !strings.HasSuffix(domain, rule.DottedName[2:]) {
+						icann, found = false, false
+						continue
+					}
+
+					icann = rule.ICANN
 					continue
 				}
 
@@ -247,7 +259,7 @@ func searchList(domain string) (string, bool, bool) {
 	// If no rules match, the prevailing rule is "*".
 	var dot = strings.LastIndex(domain, ".")
 
-	return domain[dot+1:], false, found
+	return domain[dot+1:], icann, found
 }
 
 func populateList(r io.Reader, release string) error {
@@ -258,17 +270,17 @@ func populateList(r io.Reader, release string) error {
 	for scanner.Scan() {
 		var line = strings.TrimSpace(scanner.Text())
 
-		if line == "" || strings.HasPrefix(line, "//") {
-			continue
-		}
-
-		if strings.Contains(line, icannBegin) {
+		if strings.Contains(line, ICANNBegin) {
 			icann = true
 			continue
 		}
 
-		if strings.Contains(line, icannEnd) {
+		if strings.Contains(line, ICANNEnd) {
 			icann = false
+			continue
+		}
+
+		if line == "" || strings.HasPrefix(line, "//") {
 			continue
 		}
 

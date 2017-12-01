@@ -276,13 +276,18 @@ func Test_SearchList(t *testing.T) {
 		found    bool
 	}{
 		{"nosuchtld", "nosuchtld", false, false},
-		{"www.bd", "www.bd", false, true},
-		{"xn--p1ai", "xn--p1ai", false, true},
+		{"www.bd", "www.bd", true, true},
+		{"xn--p1ai", "xn--p1ai", true, true},
 		{"example.globalsign.fake", "fake", false, false},
 		{"cl.a", "a", false, false},
 		{".m.m", "m", false, false},
 		{"b..n", "n", false, false},
+		{"b.n", "n", false, false},
+		{"np", "np", true, true},
+		{"ad", "ad", true, true},
+		{"00.za", "za", false, false},
 	}
+
 	for _, tt := range tests {
 		var tt = tt
 		t.Run(tt.domain, func(t *testing.T) {
@@ -455,7 +460,10 @@ org.ac
 
 		if len(rules.List) != nbRules {
 			t.Fatalf("got: %d, want: %d", len(rules.List), nbRules)
+		}
 
+		if !rules.List[0].ICANN {
+			t.Fatalf("icann should be true, got: %v", rules.List[0].ICANN)
 		}
 	})
 
