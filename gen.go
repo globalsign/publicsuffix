@@ -22,14 +22,14 @@ func main() {
 
 	var latestTag, err = listRetriever.GetLatestReleaseTag()
 	if err != nil {
-		fmt.Println(fmt.Sprintf("error while retrieving last commit information: %s", err.Error()))
+		fmt.Printf("error while retrieving last commit information: %s", err.Error())
 		os.Exit(1)
 	}
 
 	var rawList io.Reader
 	rawList, err = listRetriever.GetList(latestTag)
 	if err != nil {
-		fmt.Println(fmt.Sprintf("error while retrieving Public Suffix List latest release: %s", err.Error()))
+		fmt.Printf("error while retrieving Public Suffix List latest release: %s", err.Error())
 		os.Exit(1)
 	}
 
@@ -41,7 +41,7 @@ func main() {
 	}
 
 	if err = printFile(file, rawList, latestTag); err != nil {
-		fmt.Println(fmt.Sprintf("error while generating code: %s", err.Error()))
+		fmt.Printf("error while generating code: %s", err.Error())
 		os.Exit(1)
 	}
 }
@@ -56,7 +56,9 @@ func printFile(w io.Writer, r io.Reader, release string) error {
 	for scanner.Scan() {
 		var line = strings.TrimSpace(scanner.Text())
 
-		if line == "" || strings.HasPrefix(line, "//") {
+		// Skip empty lines and comment lines except for the ones marking the ICANN domains
+		if line == "" || (strings.HasPrefix(line, "//") &&
+			!strings.Contains(line, publicsuffix.ICANNBegin) && !strings.Contains(line, publicsuffix.ICANNEnd)) {
 			continue
 		}
 
