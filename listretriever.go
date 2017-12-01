@@ -18,13 +18,6 @@ type ListRetriever interface {
 // GitHubListRetriever implements the ListRetriever using github
 type GitHubListRetriever struct{}
 
-// mockListRetriever implements a mock of the ListRetriever for testing
-type mockListRetriever struct {
-	Release string
-	RawList io.Reader
-	Err     error
-}
-
 // ReleaseInfo decodes the sha field from the commit information
 type ReleaseInfo struct {
 	SHA string `json:"sha"`
@@ -79,14 +72,4 @@ func (gh GitHubListRetriever) GetList(release string) (io.Reader, error) {
 	}
 
 	return buf, nil
-}
-
-// GetLatestReleaseTag mocks the release retrieval
-func (m mockListRetriever) GetLatestReleaseTag() (string, error) {
-	return m.Release, m.Err
-}
-
-// GetList mocks the list retrieval
-func (m mockListRetriever) GetList(release string) (io.Reader, error) {
-	return m.RawList, m.Err
 }
