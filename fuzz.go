@@ -11,14 +11,10 @@ import (
 func Fuzz(in []byte) int {
 	var domain = string(in)
 
-	var got, icann = PublicSuffix(domain)
-	var want, wantIcann = psl.PublicSuffix(domain)
+	var got, _ = PublicSuffix(domain)
+	var want, _ = psl.PublicSuffix(domain)
 	if want != got {
 		panic(fmt.Sprintf("output mismatch: got %q, want %q (%v)\n", got, want, domain))
-	}
-
-	if icann != wantIcann {
-		panic(fmt.Sprintf("output mismatch: ICANN got %v, want %v (%v)\n", icann, wantIcann, domain))
 	}
 
 	var wantErr error
