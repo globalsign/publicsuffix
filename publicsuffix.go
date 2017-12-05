@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,15 +15,14 @@ import (
 	"golang.org/x/net/idna"
 )
 
-// RulesList encapsulates the list of domain rules and the commit version that generated them
-type RulesList struct {
-	List    []Rule
+// RulesInfo contains the map of rules and the commit version that generated them
+type RulesInfo struct {
+	Map     map[string][]Rule
 	Release string
 }
 
 // Rule contains the data related to a domain from the PSL
 type Rule struct {
-	Name       string
 	DottedName string
 	RuleType   RuleType
 	ICANN      bool
@@ -62,6 +60,7 @@ var (
 
 	githubListRetriever = GitHubListRetriever{}
 
+	// subdomainPool pools subdomain arrays to avoid reallocation cost
 	subdomainPool = sync.Pool{
 		New: func() interface{} {
 			// 5 should cover the average domain
@@ -86,8 +85,8 @@ func init() {
 	}
 }
 
-func load() RulesList {
-	return rules.Load().(RulesList)
+func load() RulesInfo {
+	return rules.Load().(RulesInfo)
 }
 
 // Write serialises and writes the Public Suffix List rules
@@ -97,11 +96,11 @@ func Write(w io.Writer) error {
 
 // Read deserialises the reader and writes the data to the Public Suffix List rules
 func Read(r io.Reader) error {
-	var tempRules = RulesList{}
-	if err := json.NewDecoder(r).Decode(&tempRules); err != nil {
+	var tempRulesInfo = RulesInfo{}
+	if err := json.NewDecoder(r).Decode(&tempRulesInfo); err != nil {
 		return err
 	}
-	rules.Store(tempRules)
+	rules.Store(tempRulesInfo)
 
 	return nil
 }
@@ -115,7 +114,7 @@ func Update() error {
 func UpdateWithListRetriever(listRetriever ListRetriever) error {
 	var latestTag, err = listRetriever.GetLatestReleaseTag()
 	if err != nil {
-		return fmt.Errorf("error while retrieving last commit information: %s", err.Error())
+		return fmt.Errorf("error while retrieving last commit information (%s): %s", latestTag, err.Error())
 	}
 
 	if latestTag == "" || load().Release == latestTag {
@@ -125,7 +124,7 @@ func UpdateWithListRetriever(listRetriever ListRetriever) error {
 	var rawList io.Reader
 	rawList, err = listRetriever.GetList(latestTag)
 	if err != nil {
-		return fmt.Errorf("error while retrieving Public Suffix List last release: %s", err.Error())
+		return fmt.Errorf("error while retrieving Public Suffix List last release (%s): %s", latestTag, err.Error())
 	}
 
 	populateList(rawList, latestTag)
@@ -180,92 +179,82 @@ func searchList(domain string) (string, bool, bool) {
 	var subdomains = decomposeDomain(domain, buffer)
 	defer subdomainPool.Put(subdomains)
 
-	var rules = load()
-	var found, icann = false, false
+	var rulesInfo = load()
+	var match = false
 
 	// the longest matching rule (the one with the most levels) will be used
 	for _, sub := range subdomains {
-		var index = sort.Search(len(rules.List), func(i int) bool {
-			return rules.List[i].Name >= sub.name
-		})
-
-		// if not found, continue
-		if index == len(rules.List) {
+		var rules, found = rulesInfo.Map[sub.name]
+		if !found {
 			continue
 		}
 
-		// If found check the rule type
-		if rules.List[index].Name == sub.name {
-			var rule = rules.List[index]
-			found = true
+		match = true
 
-			if rule.RuleType == wildcard {
-				if len(domain) < len(rule.DottedName) {
-					// Handle corner case where the domain doesn't have a left side and a wildcard rule matches,
-					// i.e ".ck" with rule "*.ck" must return .ck as per golang implementation
-					if strings.Compare(domain, rule.DottedName[1:]) == 0 {
-						return domain, rule.ICANN, found
-					}
-
-					// Check if the domain contains the rule name (no dots or *), if it doesn't rule is a false match,
-					// reset the values
-					if !strings.HasSuffix(domain, rule.DottedName[2:]) {
-						icann, found = false, false
-						continue
-					}
-
-					icann = rule.ICANN
-					continue
-				}
-
-				// Check the dotted rule (removing the *.) is contained within the domain
+		// Look for all the rules matching the concatenated name
+		for _, rule := range rules {
+			switch rule.RuleType {
+			case wildcard:
+				// first check if the rule is contained within the domain without the *.
 				if !strings.HasSuffix(sub.dottedName, rule.DottedName[2:]) {
-					found = false
+					match = false
 					continue
 				}
 
 				var nbLevels = len(strings.Split(rule.DottedName, "."))
 				var dot = len(domain) - 1
 
-				for i := 0; i < nbLevels; i++ {
+				if len(domain) < len(rule.DottedName) {
+					// Handle corner case where the domain doesn't have a left side and a wildcard rule matches,
+					// i.e ".ck" with rule "*.ck" must return .ck as per golang implementation
+					if domain[0] == '.' && strings.Compare(domain, rule.DottedName[1:]) == 0 {
+						return domain, rule.ICANN, match
+					}
+
+					match = false
+					continue
+				}
+
+				for i := 0; i < nbLevels && dot != -1; i++ {
 					dot = strings.LastIndex(domain[:dot], ".")
 				}
 
-				return domain[dot+1:], rule.ICANN, found
-			}
-			//If the rule is an exception rule, modify it by removing the leftmost label
-			if rule.RuleType == exception {
-				// Check the dotted rule (removing the !) is contained within the domain
-				if !strings.HasSuffix(sub.dottedName, rules.List[index].DottedName[1:]) {
-					found = false
+				return domain[dot+1:], rule.ICANN, match
+
+			case exception:
+				// first check if the rule is contained within the domain without !
+				if !strings.HasSuffix(sub.dottedName, rule.DottedName[1:]) {
+					match = false
 					continue
 				}
 
 				var dot = strings.Index(rule.DottedName, ".")
 
-				return rule.DottedName[dot+1:], rule.ICANN, found
-			}
+				return rule.DottedName[dot+1:], rule.ICANN, match
 
-			// Check the dotted rule is contained within the domain
-			if !strings.HasSuffix(sub.dottedName, rules.List[index].DottedName) {
-				found = false
-				continue
-			}
+			default:
+				// first check if the rule is contained within the domain
+				if !strings.HasSuffix(sub.dottedName, rule.DottedName) {
+					match = false
+					continue
+				}
 
-			return rule.DottedName, rule.ICANN, found
+				return rule.DottedName, rule.ICANN, match
+			}
 		}
 	}
 
 	// If no rules match, the prevailing rule is "*".
 	var dot = strings.LastIndex(domain, ".")
 
-	return domain[dot+1:], icann, found
+	return domain[dot+1:], false, false
 }
 
 func populateList(r io.Reader, release string) error {
 	var icann = false
 	var scanner = bufio.NewScanner(r)
-	var tempRules = RulesList{}
+	var tempRulesMap = make(map[string][]Rule)
+	var mapKey string
 
 	for scanner.Scan() {
 		var line = strings.TrimSpace(scanner.Text())
@@ -300,26 +289,21 @@ func populateList(r io.Reader, release string) error {
 		switch {
 		case strings.HasPrefix(concatenatedLine, "*"):
 			rule.RuleType = wildcard
-			rule.Name = concatenatedLine[1:]
+			mapKey = concatenatedLine[1:]
 		case strings.HasPrefix(concatenatedLine, "!"):
 			rule.RuleType = exception
-			rule.Name = concatenatedLine[1:]
+			mapKey = concatenatedLine[1:]
 		default:
 			rule.RuleType = normal
-			rule.Name = concatenatedLine
+			mapKey = concatenatedLine
 		}
 
-		tempRules.List = append(tempRules.List, rule)
+		tempRulesMap[mapKey] = append(tempRulesMap[mapKey], rule)
 	}
 
-	tempRules.Release = release
+	var tempRulesInfo = RulesInfo{Release: release, Map: tempRulesMap}
 
-	// sort the list by name to be able to use binary search later
-	sort.Slice(tempRules.List, func(i int, j int) bool {
-		return tempRules.List[i].Name < tempRules.List[j].Name
-	})
-
-	rules.Store(tempRules)
+	rules.Store(tempRulesInfo)
 
 	return nil
 }
