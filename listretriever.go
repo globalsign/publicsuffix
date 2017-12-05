@@ -37,7 +37,7 @@ func (gh GitHubListRetriever) GetLatestReleaseTag() (string, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("bad GET status for %s: %d", gitCommitURL, res.StatusCode)
+		return "", fmt.Errorf("error GET %s: status %d", gitCommitURL, res.StatusCode)
 	}
 
 	var releaseInfo []ReleaseInfo
@@ -46,7 +46,7 @@ func (gh GitHubListRetriever) GetLatestReleaseTag() (string, error) {
 	}
 
 	if len(releaseInfo) == 0 {
-		return "", errors.New("no release info decoded from github")
+		return "", errors.New("no release info found from github")
 	}
 
 	return releaseInfo[0].SHA, nil
@@ -63,7 +63,7 @@ func (gh GitHubListRetriever) GetList(release string) (io.Reader, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("bad GET status for %s: %d", url, res.StatusCode)
+		return nil, fmt.Errorf("error GET %s: status %d", url, res.StatusCode)
 	}
 
 	var buf = &bytes.Buffer{}
