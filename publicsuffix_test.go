@@ -283,9 +283,13 @@ func Test_SearchList(t *testing.T) {
 		{".m.m", "m", false, false},
 		{"b..n", "n", false, false},
 		{"b.n", "n", false, false},
-		{"np", "np", true, true},
+		{"np", "np", false, false}, // rule *.np
 		{"ad", "ad", true, true},
 		{"00.za", "za", false, false},
+		{"transurl.be", "be", true, true},
+		{"0emm.com", "com", true, true},
+		{"i.ng", "i.ng", true, true},
+		{".mm", ".mm", true, true},
 	}
 
 	for _, tt := range tests {
@@ -398,7 +402,7 @@ func Test_Write(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err.Error())
 	}
 
-	var expected = `{"List":[{"Name":"ac","DottedName":"ac","RuleType":0,"ICANN":false},{"Name":"comac","DottedName":"com.ac","RuleType":0,"ICANN":false}],"Release":"write_test"}
+	var expected = `{"Map":{"ac":[{"DottedName":"ac","RuleType":0,"ICANN":false}],"comac":[{"DottedName":"com.ac","RuleType":0,"ICANN":false}]},"Release":"write_test"}
 `
 	if strings.Compare(bytes.String(), expected) != 0 {
 		t.Fatalf("got: %#v, want: %#v", bytes.String(), expected)
@@ -413,20 +417,20 @@ func Test_Read(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err.Error())
 	}
 	var rules = load()
-	if len(rules.List) != 0 {
-		t.Fatalf("got: %d want: %d", len(rules.List), 0)
+	if len(rules.Map) != 0 {
+		t.Fatalf("got: %d want: %d", len(rules.Map), 0)
 	}
 
 	var expectedNbRules = 2
 	var bytes bytes.Buffer
-	bytes.WriteString(`{"List":[{"Name":"ac","DottedName":"ac","RuleType":0,"ICANN":false},{"Name":"comac","DottedName":"com.ac","RuleType":0,"ICANN":false}],"Release":"read_test"}`)
+	bytes.WriteString(`{"Map":{"ac":[{"DottedName":"ac","RuleType":0,"ICANN":false}],"comac":[{"DottedName":"com.ac","RuleType":0,"ICANN":false}]},"Release":"write_test"}`)
 
 	if err := Read(&bytes); err != nil {
 		t.Fatalf("unexpected error: %s", err.Error())
 	}
 	rules = load()
-	if len(rules.List) != expectedNbRules {
-		t.Fatalf("got: %d want: %d", len(rules.List), expectedNbRules)
+	if len(rules.Map) != expectedNbRules {
+		t.Fatalf("got: %d want: %d", len(rules.Map), expectedNbRules)
 	}
 }
 
@@ -458,12 +462,12 @@ org.ac
 			t.Fatalf("got: %s, want: %s", rules.Release, testRelease)
 		}
 
-		if len(rules.List) != nbRules {
-			t.Fatalf("got: %d, want: %d", len(rules.List), nbRules)
+		if len(rules.Map) != nbRules {
+			t.Fatalf("got: %d, want: %d", len(rules.Map), nbRules)
 		}
 
-		if !rules.List[0].ICANN {
-			t.Fatalf("icann should be true, got: %v", rules.List[0].ICANN)
+		if !rules.Map["ac"][0].ICANN {
+			t.Fatalf("icann should be true, got: %v", rules.Map["ac"][0].ICANN)
 		}
 	})
 
@@ -514,8 +518,8 @@ org.ac
 			}
 
 			var rules = load()
-			if rules.List[0].RuleType != test.expected {
-				t.Fatalf("got: %v, want: %v", rules.List[0].RuleType, test.expected)
+			if rules.Map["ac"][0].RuleType != test.expected {
+				t.Fatalf("got: %v, want: %v", rules.Map["ac"][0].RuleType, test.expected)
 			}
 		}
 	})
