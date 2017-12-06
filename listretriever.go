@@ -45,8 +45,7 @@ func (gh GitHubListRetriever) GetLatestReleaseTag() (string, error) {
 		return "", fmt.Errorf("error decoding release info: %s", err.Error())
 	}
 
-	if len(releaseInfo) == 0 ||
-		(len(releaseInfo) > 0 && releaseInfo[0].SHA == "") {
+	if len(releaseInfo) == 0 || releaseInfo[0].SHA == "" {
 		return "", errors.New("no release info found from github")
 	}
 
