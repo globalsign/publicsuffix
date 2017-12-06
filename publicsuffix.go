@@ -72,17 +72,18 @@ var (
 func init() {
 	var initError = "error while initialising Public Suffix List from list.go: %s"
 
-	var bytes bytes.Buffer
-	bytes.Write(listBytes)
-
-	var uncompressed, err = zlib.NewReader(&bytes)
+	var uncompressed, err = zlib.NewReader(bytes.NewReader(listBytes))
 	if err != nil {
 		panic(fmt.Sprintf(initError, err.Error()))
 	}
 
-	if err := populateList(uncompressed, initialRelease); err != nil {
+	var rulesInfo *RulesInfo
+	rulesInfo, err = newList(uncompressed, initialRelease)
+	if err != nil {
 		panic(fmt.Sprintf(initError, err.Error()))
 	}
+
+	rules.Store(*rulesInfo)
 }
 
 func load() RulesInfo {
@@ -114,10 +115,10 @@ func Update() error {
 func UpdateWithListRetriever(listRetriever ListRetriever) error {
 	var latestTag, err = listRetriever.GetLatestReleaseTag()
 	if err != nil {
-		return fmt.Errorf("error while retrieving last commit information (%s): %s", latestTag, err.Error())
+		return fmt.Errorf("error while retrieving last commit information: %s", err.Error())
 	}
 
-	if latestTag == "" || load().Release == latestTag {
+	if load().Release == latestTag {
 		return nil
 	}
 
@@ -127,13 +128,19 @@ func UpdateWithListRetriever(listRetriever ListRetriever) error {
 		return fmt.Errorf("error while retrieving Public Suffix List last release (%s): %s", latestTag, err.Error())
 	}
 
-	populateList(rawList, latestTag)
+	var rulesInfo *RulesInfo
+	rulesInfo, err = newList(rawList, latestTag)
+	if err != nil {
+		return err
+	}
+
+	rules.Store(*rulesInfo)
 
 	return nil
 }
 
-// IsInPublicSuffixList returns true if the domain is found in the Public Suffix List
-func IsInPublicSuffixList(domain string) bool {
+// HasPublicSuffix returns true if the domain is found in the Public Suffix List
+func HasPublicSuffix(domain string) bool {
 	var _, _, found = searchList(domain)
 
 	return found
@@ -169,6 +176,8 @@ func Release() string {
 	return load().Release
 }
 
+// searchList looks for the given domain in the Public Suffix List and returns the suffix,
+// a flag indicating if it's managed by the Internet Corporation, and a flag indicating if it was found in the list
 func searchList(domain string) (string, bool, bool) {
 	// If the domain ends on a dot the subdomains can't be obtained - no PSL applicable
 	if strings.LastIndex(domain, ".") == len(domain)-1 {
@@ -183,7 +192,7 @@ func searchList(domain string) (string, bool, bool) {
 	var match = false
 
 	// the longest matching rule (the one with the most levels) will be used
-	for _, sub := range subdomains {
+	for index, sub := range subdomains {
 		var rules, found = rulesInfo.Map[sub.name]
 		if !found {
 			continue
@@ -201,9 +210,6 @@ func searchList(domain string) (string, bool, bool) {
 					continue
 				}
 
-				var nbLevels = len(strings.Split(rule.DottedName, "."))
-				var dot = len(domain) - 1
-
 				if len(domain) < len(rule.DottedName) {
 					// Handle corner case where the domain doesn't have a left side and a wildcard rule matches,
 					// i.e ".ck" with rule "*.ck" must return .ck as per golang implementation
@@ -215,11 +221,8 @@ func searchList(domain string) (string, bool, bool) {
 					continue
 				}
 
-				for i := 0; i < nbLevels && dot != -1; i++ {
-					dot = strings.LastIndex(domain[:dot], ".")
-				}
-
-				return domain[dot+1:], rule.ICANN, match
+				// return the previous subdomain if wildcard present
+				return subdomains[index-1].dottedName, rule.ICANN, match
 
 			case exception:
 				// first check if the rule is contained within the domain without !
@@ -250,7 +253,7 @@ func searchList(domain string) (string, bool, bool) {
 	return domain[dot+1:], false, false
 }
 
-func populateList(r io.Reader, release string) error {
+func newList(r io.Reader, release string) (*RulesInfo, error) {
 	var icann = false
 	var scanner = bufio.NewScanner(r)
 	var tempRulesMap = make(map[string][]Rule)
@@ -276,11 +279,11 @@ func populateList(r io.Reader, release string) error {
 		var err error
 		line, err = idna.ToASCII(line)
 		if err != nil {
-			return fmt.Errorf("error while converting to ASCII %s: %s", line, err.Error())
+			return nil, fmt.Errorf("error while converting to ASCII %s: %s", line, err.Error())
 		}
 
 		if !validSuffixRE.MatchString(line) {
-			return fmt.Errorf("bad publicsuffix.org list data: %q", line)
+			return nil, fmt.Errorf("bad publicsuffix.org list data: %q", line)
 		}
 
 		var rule = Rule{ICANN: icann, DottedName: line}
@@ -303,9 +306,7 @@ func populateList(r io.Reader, release string) error {
 
 	var tempRulesInfo = RulesInfo{Release: release, Map: tempRulesMap}
 
-	rules.Store(tempRulesInfo)
-
-	return nil
+	return &tempRulesInfo, nil
 }
 
 func decomposeDomain(domain string, subdomains []subdomain) []subdomain {

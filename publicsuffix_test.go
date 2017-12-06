@@ -8,6 +8,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	wep "github.com/weppos/publicsuffix-go/publicsuffix"
+	psl "golang.org/x/net/publicsuffix"
 )
 
 // eTLDPlusOneTestCases come from
@@ -309,7 +312,7 @@ func Test_SearchList(t *testing.T) {
 	}
 }
 
-func Test_IsInPublicSuffixList(t *testing.T) {
+func Test_HasPublicSuffix(t *testing.T) {
 	var tests = []struct {
 		domain string
 		found  bool
@@ -326,7 +329,7 @@ func Test_IsInPublicSuffixList(t *testing.T) {
 	for _, tt := range tests {
 		var tt = tt
 		t.Run(tt.domain, func(t *testing.T) {
-			if found := IsInPublicSuffixList(tt.domain); found != tt.found {
+			if found := HasPublicSuffix(tt.domain); found != tt.found {
 				t.Errorf("%q: got %v want %v", tt.domain, found, tt.found)
 			}
 		})
@@ -361,11 +364,6 @@ func Test_Update(t *testing.T) {
 		{
 			"Update required",
 			mockListRetriever{Release: "test", RawList: &bytes.Buffer{}},
-			"test",
-		},
-		{
-			"Empty release, don't update",
-			mockListRetriever{Release: "", RawList: &bytes.Buffer{}},
 			"test",
 		},
 	}
@@ -434,8 +432,8 @@ func Test_Read(t *testing.T) {
 	}
 }
 
-func Test_PopulateList(t *testing.T) {
-	var testRelease = "populate_test"
+func Test_NewList(t *testing.T) {
+	var testRelease = "newlist_test"
 
 	t.Run("OK", func(t *testing.T) {
 		var input bytes.Buffer
@@ -454,20 +452,21 @@ org.ac
 `)
 		var nbRules = 7
 
-		if err := populateList(&input, testRelease); err != nil {
+		var rulesInfo, err = newList(&input, testRelease)
+		if err != nil {
 			t.Fatalf("unexpected error: %s", err.Error())
 		}
-		var rules = load()
-		if rules.Release != testRelease {
-			t.Fatalf("got: %s, want: %s", rules.Release, testRelease)
+
+		if rulesInfo.Release != testRelease {
+			t.Fatalf("got: %s, want: %s", rulesInfo.Release, testRelease)
 		}
 
-		if len(rules.Map) != nbRules {
-			t.Fatalf("got: %d, want: %d", len(rules.Map), nbRules)
+		if len(rulesInfo.Map) != nbRules {
+			t.Fatalf("got: %d, want: %d", len(rulesInfo.Map), nbRules)
 		}
 
-		if !rules.Map["ac"][0].ICANN {
-			t.Fatalf("icann should be true, got: %v", rules.Map["ac"][0].ICANN)
+		if !rulesInfo.Map["ac"][0].ICANN {
+			t.Fatalf("icann should be true, got: %v", rulesInfo.Map["ac"][0].ICANN)
 		}
 	})
 
@@ -478,7 +477,7 @@ org.ac
 			`)
 		var expectedErr = errors.New("bad publicsuffix.org list data: \"COM\"")
 
-		var err = populateList(&input, testRelease)
+		var _, err = newList(&input, testRelease)
 
 		if !reflect.DeepEqual(err, expectedErr) {
 			t.Fatalf("got: %v, want: %v", err, expectedErr)
@@ -513,13 +512,13 @@ org.ac
 			var input bytes.Buffer
 			input.WriteString(test.input)
 
-			if err := populateList(&input, testRelease); err != nil {
+			var rulesInfo, err = newList(&input, testRelease)
+			if err != nil {
 				t.Fatalf("unexpected error: %s", err.Error())
 			}
 
-			var rules = load()
-			if rules.Map["ac"][0].RuleType != test.expected {
-				t.Fatalf("got: %v, want: %v", rules.Map["ac"][0].RuleType, test.expected)
+			if rulesInfo.Map["ac"][0].RuleType != test.expected {
+				t.Fatalf("got: %v, want: %v", rulesInfo.Map["ac"][0].RuleType, test.expected)
 			}
 		}
 	})
@@ -608,3 +607,37 @@ func BenchmarkPublicSuffix4(b *testing.B) { benchmarkPublicSuffix("www.example.t
 func BenchmarkPublicSuffix5(b *testing.B) { benchmarkPublicSuffix("bar.foo.nosuchtld", b) }        // not present in the rules
 func BenchmarkPublicSuffix6(b *testing.B) { benchmarkPublicSuffix("example.sch.uk", b) }           // wildcard rule
 func BenchmarkPublicSuffix7(b *testing.B) { benchmarkPublicSuffix("example.city.kawasaki.jp", b) } // exception rule
+
+// weppos
+func benchmarkPublicSuffixWeppos(domain string, b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		wep.CookieJarList.PublicSuffix(domain)
+	}
+}
+
+func BenchmarkPublicSuffixWeppos1(b *testing.B) { benchmarkPublicSuffixWeppos("example.ac.il", b) }
+func BenchmarkPublicSuffixWeppos2(b *testing.B) {
+	benchmarkPublicSuffixWeppos("www.example.blogspot.com", b)
+}
+func BenchmarkPublicSuffixWeppos3(b *testing.B) { benchmarkPublicSuffixWeppos("parliament.uk", b) }
+func BenchmarkPublicSuffixWeppos4(b *testing.B) { benchmarkPublicSuffixWeppos("www.example.test", b) }
+func BenchmarkPublicSuffixWeppos5(b *testing.B) { benchmarkPublicSuffixWeppos("bar.foo.nosuchtld", b) } // not present in the rules
+func BenchmarkPublicSuffixWeppos6(b *testing.B) { benchmarkPublicSuffixWeppos("example.sch.uk", b) }    // wildcard rule
+func BenchmarkPublicSuffixWeppos7(b *testing.B) {
+	benchmarkPublicSuffixWeppos("example.city.kawasaki.jp", b)
+} // exception rule
+
+// net
+func benchmarkPublicSuffixNet(domain string, b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		psl.PublicSuffix(domain)
+	}
+}
+
+func BenchmarkPublicSuffixNet1(b *testing.B) { benchmarkPublicSuffixNet("example.ac.il", b) }
+func BenchmarkPublicSuffixNet2(b *testing.B) { benchmarkPublicSuffixNet("www.example.blogspot.com", b) }
+func BenchmarkPublicSuffixNet3(b *testing.B) { benchmarkPublicSuffixNet("parliament.uk", b) }
+func BenchmarkPublicSuffixNet4(b *testing.B) { benchmarkPublicSuffixNet("www.example.test", b) }
+func BenchmarkPublicSuffixNet5(b *testing.B) { benchmarkPublicSuffixNet("bar.foo.nosuchtld", b) }        // not present in the rules
+func BenchmarkPublicSuffixNet6(b *testing.B) { benchmarkPublicSuffixNet("example.sch.uk", b) }           // wildcard rule
+func BenchmarkPublicSuffixNet7(b *testing.B) { benchmarkPublicSuffixNet("example.city.kawasaki.jp", b) } // exception rule
