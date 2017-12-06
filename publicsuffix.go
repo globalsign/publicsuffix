@@ -45,7 +45,7 @@ const (
 // ICANNBegin marks the beginning of ICANN domains
 const ICANNBegin = "BEGIN ICANN DOMAINS"
 
-// ICANNEnd marks the beginning of ICANN domains
+// ICANNEnd marks the ending of ICANN domains
 const ICANNEnd = "END ICANN DOMAINS"
 
 var (
@@ -192,7 +192,7 @@ func searchList(domain string) (string, bool, bool) {
 	var match = false
 
 	// the longest matching rule (the one with the most levels) will be used
-	for index, sub := range subdomains {
+	for _, sub := range subdomains {
 		var rules, found = rulesInfo.Map[sub.name]
 		if !found {
 			continue
@@ -221,8 +221,14 @@ func searchList(domain string) (string, bool, bool) {
 					continue
 				}
 
-				// return the previous subdomain if wildcard present
-				return subdomains[index-1].dottedName, rule.ICANN, match
+				var nbLevels = strings.Count(rule.DottedName, ".") + 1
+				var dot = len(domain) - 1
+
+				for i := 0; i < nbLevels && dot != -1; i++ {
+					dot = strings.LastIndex(domain[:dot], ".")
+				}
+
+				return domain[dot+1:], rule.ICANN, match
 
 			case exception:
 				// first check if the rule is contained within the domain without !

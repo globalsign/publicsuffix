@@ -293,6 +293,7 @@ func Test_SearchList(t *testing.T) {
 		{"0emm.com", "com", true, true},
 		{"i.ng", "i.ng", true, true},
 		{".mm", ".mm", true, true},
+		{"..np", ".np", true, true},
 	}
 
 	for _, tt := range tests {
