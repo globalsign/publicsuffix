@@ -12,7 +12,7 @@ import (
 // ListRetriever is the interface for retrieving release information/content
 type ListRetriever interface {
 	GetLatestReleaseTag() (string, error)
-	GetList(string) (io.Reader, error)
+	GetList(release string) (io.Reader, error)
 }
 
 // gitHubListRetriever implements the ListRetriever using github
