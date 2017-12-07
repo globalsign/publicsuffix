@@ -237,10 +237,10 @@ func searchList(domain string) (string, bool, bool) {
 			continue
 		}
 
-		match = true
-
 		// Look for all the rules matching the concatenated name
 		for _, rule := range rules {
+			match = true
+
 			switch rule.RuleType {
 			case wildcard:
 				// first check if the rule is contained within the domain without the *.

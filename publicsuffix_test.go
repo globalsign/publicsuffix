@@ -292,6 +292,7 @@ func Test_SearchList(t *testing.T) {
 		{"transurl.be", "be", true, true},
 		{"0emm.com", "com", true, true},
 		{"i.ng", "i.ng", true, true},
+		{"example.ing", "ing", true, true},
 		{".mm", ".mm", true, true},
 		{"..np", ".np", true, true},
 	}
