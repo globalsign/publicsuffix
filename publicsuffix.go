@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"regexp"
 	"strings"
 	"sync"
@@ -33,16 +32,16 @@ import (
 	"golang.org/x/net/idna"
 )
 
-// RulesInfo contains the map of rules and the commit version that generated them
-type RulesInfo struct {
-	Map     map[string][]Rule
+// rulesInfo contains the map of rules and the commit version that generated them
+type rulesInfo struct {
+	Map     map[string][]rule
 	Release string
 }
 
-// Rule contains the data related to a domain from the PSL
-type Rule struct {
+// rule contains the data related to a domain from the PSL
+type rule struct {
 	DottedName string
-	RuleType   RuleType
+	RuleType   ruleType
 	ICANN      bool
 }
 
@@ -51,11 +50,11 @@ type subdomain struct {
 	dottedName string
 }
 
-// RuleType encapsulates integer for enum
-type RuleType int
+// ruleType encapsulates integer for enum
+type ruleType int
 
 const (
-	normal RuleType = iota
+	normal ruleType = iota
 	wildcard
 	exception
 )
@@ -96,28 +95,19 @@ func init() {
 	listBytes = nil
 }
 
-func load() RulesInfo {
-	return rules.Load().(RulesInfo)
+func load() rulesInfo {
+	return rules.Load().(rulesInfo)
 }
 
 // Write atomically encodes the currently loaded public suffix list as JSON and compresses and
 // writes it to w.
 func Write(w io.Writer) error {
-	var rulesEncoded, err = json.Marshal(load())
-	if err != nil {
-		return err
-	}
+	// Wrap w in zlib Writer
+	var zlibWriter = zlib.NewWriter(w)
+	defer zlibWriter.Close()
 
-	// Zlib compression
-	var zlibBuffer bytes.Buffer
-	var zlibWriter = zlib.NewWriter(&zlibBuffer)
-
-	zlibWriter.Write(rulesEncoded)
-	zlibWriter.Close()
-
-	io.Copy(w, &zlibBuffer)
-
-	return nil
+	// Encode directly into the zlib writer, which in turn writes into w.
+	return json.NewEncoder(zlibWriter).Encode(load())
 }
 
 // Read loads a public suffix list serialised and compressed by Write and uses it for future
@@ -127,16 +117,11 @@ func Read(r io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("zlib error: %s", err.Error())
 	}
+	defer zlibReader.Close()
 
-	var tempRulesInfo = RulesInfo{}
-	var uncompressedRules []byte
-	uncompressedRules, err = ioutil.ReadAll(zlibReader)
-	if err != nil {
-		return err
-	}
-
-	if err = json.Unmarshal(uncompressedRules, &tempRulesInfo); err != nil {
-		return err
+	var tempRulesInfo = rulesInfo{}
+	if err := json.NewDecoder(zlibReader).Decode(&tempRulesInfo); err != nil {
+		return fmt.Errorf("json error: %s", err.Error())
 	}
 
 	rules.Store(tempRulesInfo)
@@ -150,7 +135,7 @@ func Read(r io.Reader) error {
 // 		https://github.com/publicsuffix/list
 //
 func Update() error {
-	return UpdateWithListRetriever(GitHubListRetriever{})
+	return UpdateWithListRetriever(gitHubListRetriever{})
 }
 
 // UpdateWithListRetriever attempts to update the internal public suffix list
@@ -175,7 +160,7 @@ func UpdateWithListRetriever(listRetriever ListRetriever) error {
 		return fmt.Errorf("error while retrieving Public Suffix List last release (%s): %s", latestTag, err.Error())
 	}
 
-	var rulesInfo *RulesInfo
+	var rulesInfo *rulesInfo
 	rulesInfo, err = newList(rawList, latestTag)
 	if err != nil {
 		return err
@@ -313,11 +298,11 @@ func searchList(domain string) (string, bool, bool) {
 	return domain[dot+1:], false, false
 }
 
-// newList reads and parses r to create a new RulesInfo identified by release.
-func newList(r io.Reader, release string) (*RulesInfo, error) {
+// newList reads and parses r to create a new rulesInfo identified by release.
+func newList(r io.Reader, release string) (*rulesInfo, error) {
 	var icann = false
 	var scanner = bufio.NewScanner(r)
-	var tempRulesMap = make(map[string][]Rule)
+	var tempRulesMap = make(map[string][]rule)
 	var mapKey string
 
 	for scanner.Scan() {
@@ -347,7 +332,7 @@ func newList(r io.Reader, release string) (*RulesInfo, error) {
 			return nil, fmt.Errorf("bad publicsuffix.org list data: %q", line)
 		}
 
-		var rule = Rule{ICANN: icann, DottedName: line}
+		var rule = rule{ICANN: icann, DottedName: line}
 		var concatenatedLine = strings.Replace(line, ".", "", -1)
 
 		switch {
@@ -365,7 +350,7 @@ func newList(r io.Reader, release string) (*RulesInfo, error) {
 		tempRulesMap[mapKey] = append(tempRulesMap[mapKey], rule)
 	}
 
-	var tempRulesInfo = RulesInfo{Release: release, Map: tempRulesMap}
+	var tempRulesInfo = rulesInfo{Release: release, Map: tempRulesMap}
 
 	return &tempRulesInfo, nil
 }
