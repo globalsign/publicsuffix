@@ -23,6 +23,7 @@ func Example() {
 
 	// Get public suffix
 	var suffix, icann = PublicSuffix("another.example.domain.com")
+	fmt.Printf("suffix: %s, icann: %v", suffix, icann)
 
 	// Write the current Public List to a file
 	var file, err = os.Create("list_backup")

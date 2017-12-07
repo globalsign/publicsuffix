@@ -401,8 +401,7 @@ func Test_Write(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err.Error())
 	}
 
-	var expected = `{"Map":{"ac":[{"DottedName":"ac","RuleType":0,"ICANN":false}],"comac":[{"DottedName":"com.ac","RuleType":0,"ICANN":false}]},"Release":"write_test"}
-`
+	var expected = "x\x9c\x84˱\nB1\f\x05\xd0\u007f\xb9s\x10\xe7l\xa2\x8b\x83\x1d\x1en\"\x12\xea\x15\x84\x96\x16\x1b\x11)\xfdw\xe9.\xbc\xf5\xc0\xe98Y\x85vX\x84^:\x0eŝ\xf7`\x99\xd0i\x82\xe5\x9dx\xfeVB\xb7\x82\xe3~\x17\x02\xf4a\xa9q\\\x05\xb1\xe4\u007f1\x96\xbcY\xcbC\xb00\xd1\xda\f\x9f\xd7\xd3ys6\xc7\xf8\x05\x00\x00\xff\xffj\xb5/|"
 	if strings.Compare(bytes.String(), expected) != 0 {
 		t.Fatalf("got: %#v, want: %#v", bytes.String(), expected)
 	}
@@ -422,7 +421,7 @@ func Test_Read(t *testing.T) {
 
 	var expectedNbRules = 2
 	var bytes bytes.Buffer
-	bytes.WriteString(`{"Map":{"ac":[{"DottedName":"ac","RuleType":0,"ICANN":false}],"comac":[{"DottedName":"com.ac","RuleType":0,"ICANN":false}]},"Release":"write_test"}`)
+	bytes.WriteString("x\x9c\x84˱\nB1\f\x05\xd0\u007f\xb9s\x10\xe7l\xa2\x8b\x83\x1d\x1en\"\x12\xea\x15\x84\x96\x16\x1b\x11)\xfdw\xe9.\xbc\xf5\xc0\xe98Y\x85vX\x84^:\x0eŝ\xf7`\x99\xd0i\x82\xe5\x9dx\xfeVB\xb7\x82\xe3~\x17\x02\xf4a\xa9q\\\x05\xb1\xe4\u007f1\x96\xbcY\xcbC\xb00\xd1\xda\f\x9f\xd7\xd3ys6\xc7\xf8\x05\x00\x00\xff\xffj\xb5/|")
 
 	if err := Read(&bytes); err != nil {
 		t.Fatalf("unexpected error: %s", err.Error())

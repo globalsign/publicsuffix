@@ -1,3 +1,20 @@
+// Package publicsuffix provides functions to query the public suffix list found
+// at:
+//
+// 		https://publicsuffix.org/
+//
+// When first initialised, this library uses a statically compiled list which
+// may be out of date - callers should use Update to attempt to fetch a new
+// version from the official GitHub repository. Alternate data sources (such as
+// a network share, etc) can be used by implementing the ListRetriever
+// interface.
+//
+// A list can be serialised using Write, and loaded using Read - this allows the
+// caller to write the updated internal list to disk at shutdown and resume
+// using it immediately on the next start.
+//
+// All exported functions are concurrency safe and the internal list uses
+// copy-on-write during updates to avoid blocking queries.
 package publicsuffix
 
 import (
@@ -7,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"regexp"
 	"strings"
 	"sync"
@@ -42,11 +60,13 @@ const (
 	exception
 )
 
-// ICANNBegin marks the beginning of ICANN domains
-const ICANNBegin = "BEGIN ICANN DOMAINS"
+// icannBegin marks the beginning of ICANN domains in the public suffix list
+// source file.
+const icannBegin = "BEGIN ICANN DOMAINS"
 
-// ICANNEnd marks the ending of ICANN domains
-const ICANNEnd = "END ICANN DOMAINS"
+// icannEnd marks the ending of ICANN domains in the public suffix list
+// source file.
+const icannEnd = "END ICANN DOMAINS"
 
 var (
 	// validSuffixRE is used to check that the entries in the public suffix
@@ -58,8 +78,6 @@ var (
 	// handles read/write concurrency
 	rules atomic.Value
 
-	githubListRetriever = GitHubListRetriever{}
-
 	// subdomainPool pools subdomain arrays to avoid reallocation cost
 	subdomainPool = sync.Pool{
 		New: func() interface{} {
@@ -70,48 +88,77 @@ var (
 )
 
 func init() {
-	var initError = "error while initialising Public Suffix List from list.go: %s"
-
-	var uncompressed, err = zlib.NewReader(bytes.NewReader(listBytes))
-	if err != nil {
-		panic(fmt.Sprintf(initError, err.Error()))
+	if err := Read(bytes.NewReader(listBytes)); err != nil {
+		panic(fmt.Sprintf("error while initialising Public Suffix List from list.go: %s", err.Error()))
 	}
 
-	var rulesInfo *RulesInfo
-	rulesInfo, err = newList(uncompressed, initialRelease)
-	if err != nil {
-		panic(fmt.Sprintf(initError, err.Error()))
-	}
-
-	rules.Store(*rulesInfo)
+	// not used after initialisation, set to nil for garbage collector
+	listBytes = nil
 }
 
 func load() RulesInfo {
 	return rules.Load().(RulesInfo)
 }
 
-// Write serialises and writes the Public Suffix List rules
+// Write atomically encodes the currently loaded public suffix list as JSON and compresses and
+// writes it to w.
 func Write(w io.Writer) error {
-	return json.NewEncoder(w).Encode(load())
-}
-
-// Read deserialises the reader and writes the data to the Public Suffix List rules
-func Read(r io.Reader) error {
-	var tempRulesInfo = RulesInfo{}
-	if err := json.NewDecoder(r).Decode(&tempRulesInfo); err != nil {
+	var rulesEncoded, err = json.Marshal(load())
+	if err != nil {
 		return err
 	}
+
+	// Zlib compression
+	var zlibBuffer bytes.Buffer
+	var zlibWriter = zlib.NewWriter(&zlibBuffer)
+
+	zlibWriter.Write(rulesEncoded)
+	zlibWriter.Close()
+
+	io.Copy(w, &zlibBuffer)
+
+	return nil
+}
+
+// Read loads a public suffix list serialised and compressed by Write and uses it for future
+// lookups.
+func Read(r io.Reader) error {
+	var zlibReader, err = zlib.NewReader(r)
+	if err != nil {
+		return fmt.Errorf("zlib error: %s", err.Error())
+	}
+
+	var tempRulesInfo = RulesInfo{}
+	var uncompressedRules []byte
+	uncompressedRules, err = ioutil.ReadAll(zlibReader)
+	if err != nil {
+		return err
+	}
+
+	if err = json.Unmarshal(uncompressedRules, &tempRulesInfo); err != nil {
+		return err
+	}
+
 	rules.Store(tempRulesInfo)
 
 	return nil
 }
 
-// Update updates the internal Public Suffix List rules using the github repo
+// Update fetches the latest public suffix list from the official github
+// repository and uses it for future lookups.
+//
+// 		https://github.com/publicsuffix/list
+//
 func Update() error {
-	return UpdateWithListRetriever(githubListRetriever)
+	return UpdateWithListRetriever(GitHubListRetriever{})
 }
 
-// UpdateWithListRetriever updates the internal Public Suffix List rules with the latest version using the list retriever provided
+// UpdateWithListRetriever attempts to update the internal public suffix list
+// using listRetriever as a data source.
+//
+// UpdateWithListRetriever is provided to allow callers to provide custom update
+// sources, such as reading from a network store or local cache instead of
+// fetching from the GitHub repository.
 func UpdateWithListRetriever(listRetriever ListRetriever) error {
 	var latestTag, err = listRetriever.GetLatestReleaseTag()
 	if err != nil {
@@ -139,15 +186,21 @@ func UpdateWithListRetriever(listRetriever ListRetriever) error {
 	return nil
 }
 
-// HasPublicSuffix returns true if the domain is found in the Public Suffix List
+// HasPublicSuffix returns true if the TLD of domain is in the public suffix
+// list.
 func HasPublicSuffix(domain string) bool {
 	var _, _, found = searchList(domain)
 
 	return found
 }
 
-// PublicSuffix returns the public suffix for the given domain, and a bool indicating if it's managed by the Internet Corporation
-// for Assigned Names and Numbers
+// PublicSuffix returns the public suffix of the domain using a copy of the
+// internal public suffix list.
+//
+// The returned bool is true when the public suffix is managed by the Internet
+// Corporation for Assigned Names and Numbers. If false, the public suffix is
+// privately managed. For example, foo.org and foo.co.uk are ICANN domains,
+// foo.dyndns.org and foo.blogspot.co.uk are private domains.
 func PublicSuffix(domain string) (string, bool) {
 	var publicsuffix, icann, _ = searchList(domain)
 
@@ -171,13 +224,14 @@ func EffectiveTLDPlusOne(domain string) (string, error) {
 	return domain[1+strings.LastIndex(domain[:i], "."):], nil
 }
 
-// Release returns the release of the current Public Suffix List
+// Release returns the release of the current internal public suffix list.
 func Release() string {
 	return load().Release
 }
 
-// searchList looks for the given domain in the Public Suffix List and returns the suffix,
-// a flag indicating if it's managed by the Internet Corporation, and a flag indicating if it was found in the list
+// searchList looks for the given domain in the Public Suffix List and returns
+// the suffix, a flag indicating if it's managed by the Internet Corporation,
+// and a flag indicating if it was found in the list
 func searchList(domain string) (string, bool, bool) {
 	// If the domain ends on a dot the subdomains can't be obtained - no PSL applicable
 	if strings.LastIndex(domain, ".") == len(domain)-1 {
@@ -259,6 +313,7 @@ func searchList(domain string) (string, bool, bool) {
 	return domain[dot+1:], false, false
 }
 
+// newList reads and parses r to create a new RulesInfo identified by release.
 func newList(r io.Reader, release string) (*RulesInfo, error) {
 	var icann = false
 	var scanner = bufio.NewScanner(r)
@@ -268,12 +323,12 @@ func newList(r io.Reader, release string) (*RulesInfo, error) {
 	for scanner.Scan() {
 		var line = strings.TrimSpace(scanner.Text())
 
-		if strings.Contains(line, ICANNBegin) {
+		if strings.Contains(line, icannBegin) {
 			icann = true
 			continue
 		}
 
-		if strings.Contains(line, ICANNEnd) {
+		if strings.Contains(line, icannEnd) {
 			icann = false
 			continue
 		}
@@ -315,6 +370,7 @@ func newList(r io.Reader, release string) (*RulesInfo, error) {
 	return &tempRulesInfo, nil
 }
 
+// decomposeDomain breaks domain down into a slice of labels.
 func decomposeDomain(domain string, subdomains []subdomain) []subdomain {
 	var sub = subdomain{dottedName: domain, name: strings.Replace(domain, ".", "", -1)}
 
