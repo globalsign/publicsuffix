@@ -1,7 +1,6 @@
 package publicsuffix
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 )
@@ -32,9 +31,7 @@ func Example() {
 	}
 	defer file.Close()
 
-	var writer = bufio.NewWriter(file)
-
-	if err := Write(writer); err != nil {
+	if err := Write(file); err != nil {
 		panic(err.Error())
 	}
 
@@ -44,8 +41,7 @@ func Example() {
 		panic(err.Error())
 	}
 
-	var reader = bufio.NewReader(file)
-	if err := Read(reader); err != nil {
+	if err := Read(file); err != nil {
 		panic(err.Error())
 	}
 
