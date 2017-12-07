@@ -14,7 +14,6 @@ import (
 )
 
 func main() {
-
 	publicsuffix.Update()
 
 	var rules bytes.Buffer
@@ -30,7 +29,6 @@ func main() {
 }
 
 func printFile(rules bytes.Buffer) error {
-
 	var file, err = os.Create("list.go")
 	if err != nil {
 		return err
