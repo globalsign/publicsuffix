@@ -228,7 +228,6 @@ func searchList(domain string) (string, bool, bool) {
 	defer subdomainPool.Put(subdomains)
 
 	var rulesInfo = load()
-	var match = false
 
 	// the longest matching rule (the one with the most levels) will be used
 	for _, sub := range subdomains {
@@ -239,13 +238,10 @@ func searchList(domain string) (string, bool, bool) {
 
 		// Look for all the rules matching the concatenated name
 		for _, rule := range rules {
-			match = true
-
 			switch rule.RuleType {
 			case wildcard:
 				// first check if the rule is contained within the domain without the *.
 				if !strings.HasSuffix(sub.dottedName, rule.DottedName[2:]) {
-					match = false
 					continue
 				}
 
@@ -253,10 +249,9 @@ func searchList(domain string) (string, bool, bool) {
 					// Handle corner case where the domain doesn't have a left side and a wildcard rule matches,
 					// i.e ".ck" with rule "*.ck" must return .ck as per golang implementation
 					if domain[0] == '.' && strings.Compare(domain, rule.DottedName[1:]) == 0 {
-						return domain, rule.ICANN, match
+						return domain, rule.ICANN, true
 					}
 
-					match = false
 					continue
 				}
 
@@ -267,27 +262,25 @@ func searchList(domain string) (string, bool, bool) {
 					dot = strings.LastIndex(domain[:dot], ".")
 				}
 
-				return domain[dot+1:], rule.ICANN, match
+				return domain[dot+1:], rule.ICANN, true
 
 			case exception:
 				// first check if the rule is contained within the domain without !
 				if !strings.HasSuffix(sub.dottedName, rule.DottedName[1:]) {
-					match = false
 					continue
 				}
 
 				var dot = strings.Index(rule.DottedName, ".")
 
-				return rule.DottedName[dot+1:], rule.ICANN, match
+				return rule.DottedName[dot+1:], rule.ICANN, true
 
 			default:
 				// first check if the rule is contained within the domain
 				if !strings.HasSuffix(sub.dottedName, rule.DottedName) {
-					match = false
 					continue
 				}
 
-				return rule.DottedName, rule.ICANN, match
+				return rule.DottedName, rule.ICANN, true
 			}
 		}
 	}
