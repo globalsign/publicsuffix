@@ -40,6 +40,7 @@ func Example() {
 	if err != nil {
 		panic(err.Error())
 	}
+	defer file.Close()
 
 	if err := Read(file); err != nil {
 		panic(err.Error())
