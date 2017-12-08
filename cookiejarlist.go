@@ -7,9 +7,9 @@ import (
 
 type list struct{}
 
-// List implements the cookiejar.PublicSuffixList interface by calling the
+// CookieJarList implements the cookiejar.PublicSuffixList interface by calling the
 // PublicSuffix function.
-var List cookiejar.PublicSuffixList = list{}
+var CookieJarList cookiejar.PublicSuffixList = list{}
 
 func (list) PublicSuffix(domain string) string {
 	var ps, _ = PublicSuffix(domain)
