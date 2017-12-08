@@ -74,7 +74,7 @@ func Example() {
 
 ## Algorithm
 
-Algorithm follows the steps defined by the [Public Suffix List](https://publicsuffix.org/list/).
+The algorithm follows the steps defined by the [Public Suffix List](https://publicsuffix.org/list/).
 
 1. Match domain against all rules and take note of the matching ones.
 2. If no rules match, the prevailing rule is "*".
@@ -110,9 +110,9 @@ map["ing"] = {{DottedName: "i.ng", RuleType: normal, ICANN: true},
 			  {DottedName: "ing", RuleType: normal, ICANN: true}}
 ```
 
-## Differences with `golang.org/x/net/publicsuffix` and `github.com/weppos/publicsuffix-go`
+## Why another publicsuffix?
 
-The idea behind this implementation is to mirror the behaviour of the existing golang library adding the flexibility weppos one introduces and maintaining a good performance. 
+This implementation aims for performance close to `golang.org/x/net/publicsuffix` whilst adding the capability to update the PSL similar to `github.com/weppos/publicsuffix-go`
 
 Main features of this library are:
  - Start up initialisation of a static list
@@ -122,33 +122,95 @@ Main features of this library are:
  - Concurrency safe
 
 Benchmark comparison between the three libraries, can be found in /publicsuffix/publicsuffix_test.go:
+
+#### Benchmark comparison between `golang.org/x/net/publicsuffix` and `github.com/weppos/publicsuffix-go`
 ```
-Benchmark values for this library
-BenchmarkPublicSuffix1-8 3000000 514 ns/op 64 B/op 5 allocs/op
-BenchmarkPublicSuffix2-8 2000000 748 ns/op 192 B/op 7 allocs/op
-BenchmarkPublicSuffix3-8 5000000 372 ns/op 64 B/op 3 allocs/op
-BenchmarkPublicSuffix4-8 3000000 543 ns/op 96 B/op 5 allocs/op
-BenchmarkPublicSuffix5-8 3000000 565 ns/op 96 B/op 5 allocs/op
-BenchmarkPublicSuffix6-8 2000000 678 ns/op 122 B/op 6 allocs/op
-BenchmarkPublicSuffix7-8 2000000 700 ns/op 160 B/op 7 allocs/op
- 
-Benchmark values for `golang.org/x/net/publicsuffix` 
-BenchmarkPublicSuffixNet1-8 10000000 218 ns/op 0 B/op 0 allocs/op
-BenchmarkPublicSuffixNet2-8 5000000 265 ns/op 0 B/op 0 allocs/op
-BenchmarkPublicSuffixNet3-8 10000000 181 ns/op 0 B/op 0 allocs/op
-BenchmarkPublicSuffixNet4-8 10000000 133 ns/op 0 B/op 0 allocs/op
-BenchmarkPublicSuffixNet5-8 10000000 141 ns/op 0 B/op 0 allocs/op
-BenchmarkPublicSuffixNet6-8 10000000 195 ns/op 0 B/op 0 allocs/op
-BenchmarkPublicSuffixNet7-8 5000000 238 ns/op 0 B/op 0 allocs/op
- 
-Benchmark values for `github.com/weppos/publicsuffix-go`
-BenchmarkPublicSuffixWeppos1-8 10000 146959 ns/op 45221 B/op 70 allocs/op
-BenchmarkPublicSuffixWeppos2-8 10000 154362 ns/op 47761 B/op 72 allocs/op
-BenchmarkPublicSuffixWeppos3-8 10000 146561 ns/op 44782 B/op 66 allocs/op
-BenchmarkPublicSuffixWeppos4-8 10000 156349 ns/op 44846 B/op 66 allocs/op
-BenchmarkPublicSuffixWeppos5-8 10000 161006 ns/op 44846 B/op 66 allocs/op
-BenchmarkPublicSuffixWeppos6-8 10000 158021 ns/op 47409 B/op 74 allocs/op
-BenchmarkPublicSuffixWeppos7-8 10000 156046 ns/op 47745 B/op 73 allocs/op
+benchmark                    old ns/op     new ns/op     delta
+BenchmarkPublicSuffix1-8     210           135465        +64407.14%
+BenchmarkPublicSuffix2-8     246           138498        +56200.00%
+BenchmarkPublicSuffix3-8     174           133217        +76461.49%
+BenchmarkPublicSuffix4-8     130           140399        +107899.23%
+BenchmarkPublicSuffix5-8     138           141108        +102152.17%
+BenchmarkPublicSuffix6-8     189           139077        +73485.71%
+BenchmarkPublicSuffix7-8     234           139605        +59560.26%
+
+benchmark                    old allocs     new allocs     delta
+BenchmarkPublicSuffix1-8     0              70             +Inf%
+BenchmarkPublicSuffix2-8     0              72             +Inf%
+BenchmarkPublicSuffix3-8     0              66             +Inf%
+BenchmarkPublicSuffix4-8     0              66             +Inf%
+BenchmarkPublicSuffix5-8     0              66             +Inf%
+BenchmarkPublicSuffix6-8     0              74             +Inf%
+BenchmarkPublicSuffix7-8     0              73             +Inf%
+
+benchmark                    old bytes     new bytes     delta
+BenchmarkPublicSuffix1-8     0             45211         +Inf%
+BenchmarkPublicSuffix2-8     0             47749         +Inf%
+BenchmarkPublicSuffix3-8     0             44771         +Inf%
+BenchmarkPublicSuffix4-8     0             44834         +Inf%
+BenchmarkPublicSuffix5-8     0             44834         +Inf%
+BenchmarkPublicSuffix6-8     0             47395         +Inf%
+BenchmarkPublicSuffix7-8     0             47732         +Inf%
+```
+
+#### Benchmark comparison between `golang.org/x/net/publicsuffix` and this library
+```
+benchmark                    old ns/op     new ns/op     delta
+BenchmarkPublicSuffix1-8     210           415           +97.62%
+BenchmarkPublicSuffix2-8     246           618           +151.22%
+BenchmarkPublicSuffix3-8     174           295           +69.54%
+BenchmarkPublicSuffix4-8     130           443           +240.77%
+BenchmarkPublicSuffix5-8     138           446           +223.19%
+BenchmarkPublicSuffix6-8     189           427           +125.93%
+BenchmarkPublicSuffix7-8     234           600           +156.41%
+
+benchmark                    old allocs     new allocs     delta
+BenchmarkPublicSuffix1-8     0              5              +Inf%
+BenchmarkPublicSuffix2-8     0              7              +Inf%
+BenchmarkPublicSuffix3-8     0              3              +Inf%
+BenchmarkPublicSuffix4-8     0              5              +Inf%
+BenchmarkPublicSuffix5-8     0              5              +Inf%
+BenchmarkPublicSuffix6-8     0              5              +Inf%
+BenchmarkPublicSuffix7-8     0              7              +Inf%
+
+benchmark                    old bytes     new bytes     delta
+BenchmarkPublicSuffix1-8     0             64            +Inf%
+BenchmarkPublicSuffix2-8     0             192           +Inf%
+BenchmarkPublicSuffix3-8     0             64            +Inf%
+BenchmarkPublicSuffix4-8     0             96            +Inf%
+BenchmarkPublicSuffix5-8     0             96            +Inf%
+BenchmarkPublicSuffix6-8     0             74            +Inf%
+BenchmarkPublicSuffix7-8     0             160           +Inf%
+```
+
+#### Benchmark comparison between `github.com/weppos/publicsuffix-go` and this library
+```
+benchmark                    old ns/op     new ns/op     delta
+BenchmarkPublicSuffix1-8     135465        415           -99.69%
+BenchmarkPublicSuffix2-8     138498        618           -99.55%
+BenchmarkPublicSuffix3-8     133217        295           -99.78%
+BenchmarkPublicSuffix4-8     140399        443           -99.68%
+BenchmarkPublicSuffix5-8     141108        446           -99.68%
+BenchmarkPublicSuffix6-8     139077        427           -99.69%
+BenchmarkPublicSuffix7-8     139605        600           -99.57%
+
+benchmark                    old allocs     new allocs     delta
+BenchmarkPublicSuffix1-8     70             5              -92.86%
+BenchmarkPublicSuffix2-8     72             7              -90.28%
+BenchmarkPublicSuffix3-8     66             3              -95.45%
+BenchmarkPublicSuffix4-8     66             5              -92.42%
+BenchmarkPublicSuffix5-8     66             5              -92.42%
+BenchmarkPublicSuffix6-8     74             5              -93.24%
+BenchmarkPublicSuffix7-8     73             7              -90.41%
+
+benchmark                    old bytes     new bytes     delta
+BenchmarkPublicSuffix1-8     45211         64            -99.86%
+BenchmarkPublicSuffix2-8     47749         192           -99.60%
+BenchmarkPublicSuffix3-8     44771         64            -99.86%
+BenchmarkPublicSuffix4-8     44834         96            -99.79%
+BenchmarkPublicSuffix5-8     44834         96            -99.79%
+BenchmarkPublicSuffix6-8     47395         74            -99.84%
+BenchmarkPublicSuffix7-8     47732         160           -99.66%
 ```
 
 ## `cookiejar.PublicSuffixList` interface
