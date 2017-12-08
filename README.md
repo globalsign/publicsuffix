@@ -1,6 +1,6 @@
 # publicsuffix
 
-Package <tt>publicsuffix<tt> provides functions to query the public suffix list found at [Public Suffix List](http://publicsuffix.org/)
+Package <tt>publicsuffix</tt> provides functions to query the public suffix list found at [Public Suffix List](http://publicsuffix.org/).
 
 When first initialised, this library uses a statically compiled list which may be out of date - callers should use Update to attempt to fetch a new
 version from the official GitHub repository. Alternate data sources (such as a network share, etc) can be used by implementing the ListRetriever interface.
@@ -74,7 +74,7 @@ func Example() {
 
 ## Algorithm
 
-Algorithm follows the steps defined by [Public Suffix List](https://publicsuffix.org/list/)
+Algorithm follows the steps defined by the [Public Suffix List](https://publicsuffix.org/list/).
 
 1. Match domain against all rules and take note of the matching ones.
 2. If no rules match, the prevailing rule is "*".
@@ -90,24 +90,25 @@ The list is parsed to build an internal map. It uses the concatenated name of th
 - ICANN flag: indicates if the rule is within the ICANN delimiters in the list
 
 The input domain is decomposed in all possible subdomains.
-Example:
+```Example:
 // Input domain
 example.blogspot.co.uk
 // Decomposed 
 "example.blogspot.co.uk", "blogspot.co.uk", "co.uk", "uk"
+```
 
 All options are then used in decreasing order to search in the map, so the subdomain with most levels has matching priority. If several rules match the map key, only the one
 matching the dotted name will be considered a valid match. 
-Example:
+```Example:
 // Domains in the list
 i.ng
 ing
-
+```
 They will both be stored in the internal map under key "ing", however the rule will only match if it actually contains the dotted name. 
-
+```
 map["ing"] = {{DottedName: "i.ng", RuleType: normal, ICANN: true}, 
 			  {DottedName: "ing", RuleType: normal, ICANN: true}}
-
+```
 
 ## Differences with `golang.org/x/net/publicsuffix` and `github.com/weppos/publicsuffix-go`
 
@@ -121,7 +122,7 @@ Main features of this library are:
  - Concurrency safe
 
 Benchmark comparison between the three libraries, can be found in /publicsuffix/publicsuffix_test.go:
-
+```
 Benchmark values for this library
 BenchmarkPublicSuffix1-8 3000000 514 ns/op 64 B/op 5 allocs/op
 BenchmarkPublicSuffix2-8 2000000 748 ns/op 192 B/op 7 allocs/op
@@ -148,7 +149,7 @@ BenchmarkPublicSuffixWeppos4-8 10000 156349 ns/op 44846 B/op 66 allocs/op
 BenchmarkPublicSuffixWeppos5-8 10000 161006 ns/op 44846 B/op 66 allocs/op
 BenchmarkPublicSuffixWeppos6-8 10000 158021 ns/op 47409 B/op 74 allocs/op
 BenchmarkPublicSuffixWeppos7-8 10000 156046 ns/op 47745 B/op 73 allocs/op
-
+```
 
 ## `cookiejar.PublicSuffixList` interface
 
