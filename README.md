@@ -69,7 +69,6 @@ func Example() {
 	if err := publicsuffix.Read(file); err != nil {
 		panic(err.Error())
 	}
-
 }
 ```
 

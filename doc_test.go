@@ -45,5 +45,4 @@ func Example() {
 	if err := Read(file); err != nil {
 		panic(err.Error())
 	}
-
 }
