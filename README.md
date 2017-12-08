@@ -123,36 +123,6 @@ Main features of this library are:
 
 Benchmark comparison between the three libraries, can be found in /publicsuffix/publicsuffix_test.go:
 
-##### `golang.org/x/net/publicsuffix` vs `github.com/weppos/publicsuffix-go`
-```
-benchmark                    old ns/op     new ns/op     delta
-BenchmarkPublicSuffix1-8     210           135465        +64407.14%
-BenchmarkPublicSuffix2-8     246           138498        +56200.00%
-BenchmarkPublicSuffix3-8     174           133217        +76461.49%
-BenchmarkPublicSuffix4-8     130           140399        +107899.23%
-BenchmarkPublicSuffix5-8     138           141108        +102152.17%
-BenchmarkPublicSuffix6-8     189           139077        +73485.71%
-BenchmarkPublicSuffix7-8     234           139605        +59560.26%
-
-benchmark                    old allocs     new allocs     delta
-BenchmarkPublicSuffix1-8     0              70             +Inf%
-BenchmarkPublicSuffix2-8     0              72             +Inf%
-BenchmarkPublicSuffix3-8     0              66             +Inf%
-BenchmarkPublicSuffix4-8     0              66             +Inf%
-BenchmarkPublicSuffix5-8     0              66             +Inf%
-BenchmarkPublicSuffix6-8     0              74             +Inf%
-BenchmarkPublicSuffix7-8     0              73             +Inf%
-
-benchmark                    old bytes     new bytes     delta
-BenchmarkPublicSuffix1-8     0             45211         +Inf%
-BenchmarkPublicSuffix2-8     0             47749         +Inf%
-BenchmarkPublicSuffix3-8     0             44771         +Inf%
-BenchmarkPublicSuffix4-8     0             44834         +Inf%
-BenchmarkPublicSuffix5-8     0             44834         +Inf%
-BenchmarkPublicSuffix6-8     0             47395         +Inf%
-BenchmarkPublicSuffix7-8     0             47732         +Inf%
-```
-
 ##### `golang.org/x/net/publicsuffix` vs this library
 ```
 benchmark                    old ns/op     new ns/op     delta
