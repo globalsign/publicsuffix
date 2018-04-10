@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-
 // Package publicsuffix provides functions to query the public suffix list found
 // at:
 //
@@ -48,6 +47,8 @@ import (
 
 	"golang.org/x/net/idna"
 )
+
+//go:generate go run gen.go
 
 // rulesInfo contains the map of rules and the commit version that generated them
 type rulesInfo struct {

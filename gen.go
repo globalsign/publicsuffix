@@ -42,6 +42,8 @@ func main() {
 		fmt.Printf("error while generating code: %s\n", err.Error())
 		os.Exit(1)
 	}
+
+	fmt.Printf("Updated Public Suffix List using release: %s\n", publicsuffix.Release())
 }
 
 func printFile(rules bytes.Buffer) error {
