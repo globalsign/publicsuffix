@@ -114,74 +114,14 @@ map["ing"] = {{DottedName: "i.ng", RuleType: normal, ICANN: true},
 
 This implementation aims for performance close to `golang.org/x/net/publicsuffix` whilst adding the capability to update the PSL similar to `github.com/weppos/publicsuffix-go`
 
+## NOTE: the weppos/publicsuffix-go has had some dramatic performance improvements, making it faster than this library. 
+
 Main features of this library are:
  - Start up initialisation of a static list
  - Ability to update the internal list with latest release of github repository
  - Support for alternate data sources
  - Ability to write/read the list for efficient shutdown/start up loading times
  - Concurrency safe
-
-Benchmark comparison between the three libraries, can be found in /publicsuffix/publicsuffix_test.go:
-
-##### `golang.org/x/net/publicsuffix` vs this library
-```
-benchmark                    old ns/op     new ns/op     delta
-BenchmarkPublicSuffix1-8     210           415           +97.62%
-BenchmarkPublicSuffix2-8     246           618           +151.22%
-BenchmarkPublicSuffix3-8     174           295           +69.54%
-BenchmarkPublicSuffix4-8     130           443           +240.77%
-BenchmarkPublicSuffix5-8     138           446           +223.19%
-BenchmarkPublicSuffix6-8     189           427           +125.93%
-BenchmarkPublicSuffix7-8     234           600           +156.41%
-
-benchmark                    old allocs     new allocs     delta
-BenchmarkPublicSuffix1-8     0              5              +Inf%
-BenchmarkPublicSuffix2-8     0              7              +Inf%
-BenchmarkPublicSuffix3-8     0              3              +Inf%
-BenchmarkPublicSuffix4-8     0              5              +Inf%
-BenchmarkPublicSuffix5-8     0              5              +Inf%
-BenchmarkPublicSuffix6-8     0              5              +Inf%
-BenchmarkPublicSuffix7-8     0              7              +Inf%
-
-benchmark                    old bytes     new bytes     delta
-BenchmarkPublicSuffix1-8     0             64            +Inf%
-BenchmarkPublicSuffix2-8     0             192           +Inf%
-BenchmarkPublicSuffix3-8     0             64            +Inf%
-BenchmarkPublicSuffix4-8     0             96            +Inf%
-BenchmarkPublicSuffix5-8     0             96            +Inf%
-BenchmarkPublicSuffix6-8     0             74            +Inf%
-BenchmarkPublicSuffix7-8     0             160           +Inf%
-```
-
-##### `github.com/weppos/publicsuffix-go` vs this library
-```
-benchmark                    old ns/op     new ns/op     delta
-BenchmarkPublicSuffix1-8     135465        415           -99.69%
-BenchmarkPublicSuffix2-8     138498        618           -99.55%
-BenchmarkPublicSuffix3-8     133217        295           -99.78%
-BenchmarkPublicSuffix4-8     140399        443           -99.68%
-BenchmarkPublicSuffix5-8     141108        446           -99.68%
-BenchmarkPublicSuffix6-8     139077        427           -99.69%
-BenchmarkPublicSuffix7-8     139605        600           -99.57%
-
-benchmark                    old allocs     new allocs     delta
-BenchmarkPublicSuffix1-8     70             5              -92.86%
-BenchmarkPublicSuffix2-8     72             7              -90.28%
-BenchmarkPublicSuffix3-8     66             3              -95.45%
-BenchmarkPublicSuffix4-8     66             5              -92.42%
-BenchmarkPublicSuffix5-8     66             5              -92.42%
-BenchmarkPublicSuffix6-8     74             5              -93.24%
-BenchmarkPublicSuffix7-8     73             7              -90.41%
-
-benchmark                    old bytes     new bytes     delta
-BenchmarkPublicSuffix1-8     45211         64            -99.86%
-BenchmarkPublicSuffix2-8     47749         192           -99.60%
-BenchmarkPublicSuffix3-8     44771         64            -99.86%
-BenchmarkPublicSuffix4-8     44834         96            -99.79%
-BenchmarkPublicSuffix5-8     44834         96            -99.79%
-BenchmarkPublicSuffix6-8     47395         74            -99.84%
-BenchmarkPublicSuffix7-8     47732         160           -99.66%
-```
 
 ## `cookiejar.PublicSuffixList` interface
 
