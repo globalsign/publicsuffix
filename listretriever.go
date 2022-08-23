@@ -33,7 +33,7 @@ type ListRetriever interface {
 
 // gitHubListRetriever implements the ListRetriever using github
 type gitHubListRetriever struct {
-	client http.Client
+	client *http.Client
 }
 
 // releaseInfo decodes the sha field from the commit information
@@ -47,7 +47,7 @@ var (
 )
 
 // NewGitHubListRetriever creates a new ListRetriever with a custom HTTP client.
-func NewGitHubListRetriever(client http.Client) ListRetriever {
+func NewGitHubListRetriever(client *http.Client) ListRetriever {
 	return gitHubListRetriever{
 		client: client,
 	}
