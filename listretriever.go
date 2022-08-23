@@ -32,7 +32,9 @@ type ListRetriever interface {
 }
 
 // gitHubListRetriever implements the ListRetriever using github
-type gitHubListRetriever struct{}
+type gitHubListRetriever struct {
+	client http.Client
+}
 
 // releaseInfo decodes the sha field from the commit information
 type releaseInfo struct {
@@ -44,9 +46,16 @@ var (
 	publicSuffixURL = "https://raw.githubusercontent.com/publicsuffix/list/%s/public_suffix_list.dat"
 )
 
+// NewGitHubListRetriever creates a new ListRetriever with a custom HTTP client.
+func NewGitHubListRetriever(client http.Client) ListRetriever {
+	return gitHubListRetriever{
+		client: client,
+	}
+}
+
 // GetLatestReleaseTag retrieves the tag for the latest commit on Public Suffix List repo
 func (gh gitHubListRetriever) GetLatestReleaseTag() (string, error) {
-	var res, err = http.Get(gitCommitURL)
+	var res, err = gh.client.Get(gitCommitURL)
 	if err != nil {
 		return "", fmt.Errorf("error while retrieving last release information from github: %s", err.Error())
 	}
@@ -72,7 +81,7 @@ func (gh gitHubListRetriever) GetLatestReleaseTag() (string, error) {
 func (gh gitHubListRetriever) GetList(release string) (io.Reader, error) {
 	var url = fmt.Sprintf(publicSuffixURL, release)
 
-	var res, err = http.Get(url)
+	var res, err = gh.client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("error while retrieving last revision of the PSL(%s): %s", release, err.Error())
 	}
