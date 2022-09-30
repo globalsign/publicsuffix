@@ -24,3 +24,10 @@ func TestNewGitHubListRetriever(t *testing.T) {
 		t.Fatalf("GetList(tag) got err %v, want nil", err)
 	}
 }
+
+func TestUpdate(t *testing.T) {
+	err := Update()
+	if err != nil {
+		t.Fatalf("Got err when updating %v", err)
+	}
+}
