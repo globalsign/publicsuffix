@@ -53,9 +53,18 @@ func NewGitHubListRetriever(client *http.Client) ListRetriever {
 	}
 }
 
+func (gh gitHubListRetriever) Client() *http.Client {
+	// Just in case a nil client was passed, use the default http client.
+	client := http.DefaultClient
+	if gh.client != nil {
+		client = gh.client
+	}
+	return client
+}
+
 // GetLatestReleaseTag retrieves the tag for the latest commit on Public Suffix List repo
 func (gh gitHubListRetriever) GetLatestReleaseTag() (string, error) {
-	var res, err = gh.client.Get(gitCommitURL)
+	var res, err = gh.Client().Get(gitCommitURL)
 	if err != nil {
 		return "", fmt.Errorf("error while retrieving last release information from github: %s", err.Error())
 	}
@@ -81,13 +90,7 @@ func (gh gitHubListRetriever) GetLatestReleaseTag() (string, error) {
 func (gh gitHubListRetriever) GetList(release string) (io.Reader, error) {
 	var url = fmt.Sprintf(publicSuffixURL, release)
 
-	// Just in case a nil client was passed, use the default http client.
-	client := http.DefaultClient
-	if gh.client != nil {
-		client = gh.client
-	}
-
-	var res, err = client.Get(url)
+	var res, err = gh.Client().Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("error while retrieving last revision of the PSL(%s): %s", release, err.Error())
 	}
