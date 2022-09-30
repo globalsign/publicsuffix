@@ -81,7 +81,13 @@ func (gh gitHubListRetriever) GetLatestReleaseTag() (string, error) {
 func (gh gitHubListRetriever) GetList(release string) (io.Reader, error) {
 	var url = fmt.Sprintf(publicSuffixURL, release)
 
-	var res, err = gh.client.Get(url)
+	// Just in case a nil client was passed, use the default http client.
+	client := http.DefaultClient
+	if gh.client != nil {
+		client = gh.client
+	}
+
+	var res, err = client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("error while retrieving last revision of the PSL(%s): %s", release, err.Error())
 	}

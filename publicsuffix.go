@@ -40,6 +40,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
 	"strings"
 	"sync"
@@ -153,7 +154,7 @@ func Read(r io.Reader) error {
 // 		https://github.com/publicsuffix/list
 //
 func Update() error {
-	return UpdateWithListRetriever(gitHubListRetriever{})
+	return UpdateWithListRetriever(gitHubListRetriever{http.DefaultClient})
 }
 
 // UpdateWithListRetriever attempts to update the internal public suffix list
